@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS S3 Static Website'
+
+Parameters:
+  InstanceTypeParameter:
+    Type: 'String'
+    Default: 't2.micro'
+    Description: 'Select instance size (currently only t2.micro available)'
+  AMI:
+    Type: 'String'
+    Default: 'ami-0f9a92942448ac56f'  
+    Description: 'Select AMI for instance (currently only Windows Server 2019 available)'
+  BucketNameParameter:
+    Type: 'String'
+    Default: 'bryan-phan-4608'
+    Description: 'Bucket Name'
+  KeyPair:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Description: 'Select Key Pair for instance'
+
+Resources:
+
+  # create bastion EC2 instance
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      # t2 micro windows 2019
+      InstanceType: !Ref 'InstanceTypeParameter'
+      ImageId: !Ref 'AMI'
+      KeyName: !Ref 'KeyPair'
+
+  # create security group for EC2 to allow inbound RDP
+  SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Enables RDP'
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 0.0.0.0/0
+
+  # create S3 bucket to host website files
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref BucketNameParameter
+      WebsiteConfiguration: 
+        IndexDocument: 'index.html'
+
+  # create S3 bucket policy to only allow VPC endpoint to connect (bastion server)
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      # create bucket name based on what is entered for BucketNameParameter
+      Bucket: !Ref BucketNameParameter
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+            # denies all access except to vpce
+          - Sid: 'RestrictAccess'
+            Effect: 'Allow'
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: 
+              - !Sub 'arn:aws:s3:::${BucketNameParameter}/*'
+            Condition:
+              StringEquals:
+                # aws:SourceVpce: ' enter vpc here '
+          
